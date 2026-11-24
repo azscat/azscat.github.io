@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配置生成器</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --text: #1f2328;
+    --muted: #656d76;
+    --border: #d0d7de;
+    --accent: #0969da;
+    --accent-text: #ffffff;
+    --danger: #cf222e;
+    --ok: #1a7f37;
+    --code-bg: #f6f8fa;
+    --warn-bg: #fff8c5;
+    --warn-border: #d4a72c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --text: #e6edf3;
+      --muted: #8d96a0;
+      --border: #30363d;
+      --accent: #2f81f7;
+      --accent-text: #ffffff;
+      --danger: #f85149;
+      --ok: #3fb950;
+      --code-bg: #0d1117;
+      --warn-bg: #272115;
+      --warn-border: #9e6a03;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  header { padding: 20px 16px 8px; max-width: 1280px; margin: 0 auto; }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; color: var(--muted); }
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 12px 16px 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  section h2 { margin: 0 0 12px; font-size: 16px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .tabs button {
+    background: none; border: none; color: var(--muted);
+    padding: 8px 12px; cursor: pointer; font: inherit;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 12px; }
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--code-bg);
+    color: var(--text);
+    font: inherit;
+  }
+  textarea { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  [hidden] { display: none !important; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  button.btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font: inherit;
+  }
+  button.btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.danger { color: var(--danger); }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+  .msg { font-size: 13px; margin-top: 8px; white-space: pre-wrap; word-break: break-all; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+  .notice {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  ul.nodes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  ul.nodes li {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+  }
+  ul.nodes li.editing { border-color: var(--accent); }
+  .node-info { flex: 1; min-width: 0; }
+  .node-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .node-sub { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag {
+    font-size: 11px; padding: 1px 6px; border-radius: 10px;
+    border: 1px solid var(--border); color: var(--muted); flex-shrink: 0;
+  }
+  ul.nodes button { padding: 2px 8px; font-size: 12px; }
+  .empty { color: var(--muted); font-size: 13px; }
+  .page-tabs {
+    max-width: 1280px; margin: 8px auto 0; padding: 0 16px;
+    display: flex; gap: 4px; border-bottom: 1px solid var(--border);
+  }
+  .page-tabs button {
+    background: none; border: 1px solid transparent; border-bottom: none;
+    color: var(--muted); padding: 8px 16px; cursor: pointer; font: inherit; font-size: 15px;
+    border-radius: 8px 8px 0 0; margin-bottom: -1px;
+  }
+  .page-tabs button.active {
+    background: var(--panel); color: var(--text); font-weight: 600;
+    border-color: var(--border); border-bottom: 1px solid var(--panel);
+  }
+  .sub-row { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 8px; align-items: end; margin-bottom: 8px; }
+  @media (max-width: 600px) { .sub-row { grid-template-columns: minmax(0, 1fr) auto; } .sub-row .sub-url { grid-column: 1 / -1; grid-row: 2; } }
+  .flow {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    font-size: 13px; padding: 10px 12px; border-radius: 6px;
+    background: var(--code-bg); border: 1px dashed var(--border);
+  }
+  .flow b { color: var(--accent); }
+  #output, #c-output { min-height: 420px; white-space: pre; }
+  .output-section { position: sticky; top: 12px; }
+  @media (max-width: 900px) { .output-section { position: static; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>配置生成器</h1>
+  <p>为 ClashMetaForAndroid / mihomo 生成 YAML 配置。纯本地运行，不会发出任何网络请求，密码不会离开你的浏览器。</p>
+</header>
+
+<nav class="page-tabs" role="tablist">
+  <button type="button" class="active" data-page="nodes">单节点配置</button>
+  <button type="button" data-page="chain">链式代理</button>
+</nav>
+
+<main id="page-nodes">
+  <div class="col">
+    <section>
+      <div class="tabs" role="tablist">
+        <button type="button" class="active" data-tab="link">从链接导入</button>
+        <button type="button" data-tab="manual">手动填写</button>
+      </div>
+
+      <div id="tab-link">
+        <label class="field">代理链接（每行一个，也可以直接粘贴 Base64 订阅内容）
+          <textarea id="links" rows="6" spellcheck="false" placeholder="https://tom:密码@1.2.3.4:3129
+socks5://user:pass@1.2.3.4:1080
+ss://YWVzLTI1Ni1nY206cGFzcw@1.2.3.4:8388#我的SS
+vmess://eyJ2IjoiMiIsInBzIjoi...
+vless://uuid@host:443?security=reality&sni=...&pbk=...#VLESS
+trojan://password@host:443?sni=example.com#Trojan
+hysteria2://auth@host:443?sni=example.com#HY2"></textarea>
+        </label>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="link-insecure"> 链接未指定时，默认跳过证书验证</label>
+        </div>
+        <p class="hint">支持 http / https / socks / socks5 / ss / vmess / vless / trojan / hysteria2(hy2)。直接用 IP 连接 HTTPS 代理时，证书通常和 IP 不匹配，需要勾选上面这一项，或者在导入后编辑节点填写 SNI。</p>
+        <div class="row">
+          <button type="button" class="btn primary" id="btn-parse">解析并添加</button>
+          <button type="button" class="btn" id="btn-clear-links">清空输入</button>
+        </div>
+        <div id="link-msg" class="msg"></div>
+      </div>
+
+      <div id="tab-manual" hidden>
+        <div class="grid">
+          <label class="field">协议类型
+            <select id="f-type">
+              <option value="http">HTTP / HTTPS</option>
+              <option value="socks5">SOCKS5</option>
+              <option value="ss">Shadowsocks</option>
+              <option value="vmess">VMess</option>
+              <option value="vless">VLESS</option>
+              <option value="trojan">Trojan</option>
+              <option value="hysteria2">Hysteria2</option>
+            </select>
+          </label>
+          <label class="field">节点名称
+            <input type="text" id="f-name" placeholder="留空自动生成">
+          </label>
+          <label class="field">服务器地址
+            <input type="text" id="f-server" placeholder="IP 或域名">
+          </label>
+          <label class="field">端口
+            <input type="number" id="f-port" min="1" max="65535" placeholder="例如 443">
+          </label>
+
+          <label class="field" data-show="http socks5">用户名
+            <input type="text" id="f-username" autocomplete="off" placeholder="无认证可留空">
+          </label>
+          <label class="field" data-show="http socks5 ss trojan hysteria2">密码
+            <input type="text" id="f-password" autocomplete="off">
+          </label>
+          <label class="field" data-show="vmess vless">UUID
+            <input type="text" id="f-uuid" autocomplete="off">
+          </label>
+          <label class="field" data-show="ss">加密方式
+            <select id="f-ss-cipher">
+              <option>aes-128-gcm</option>
+              <option selected>aes-256-gcm</option>
+              <option>chacha20-ietf-poly1305</option>
+              <option>2022-blake3-aes-128-gcm</option>
+              <option>2022-blake3-aes-256-gcm</option>
+              <option>2022-blake3-chacha20-poly1305</option>
+              <option>xchacha20-ietf-poly1305</option>
+              <option>aes-256-cfb</option>
+              <option>rc4-md5</option>
+              <option>none</option>
+            </select>
+          </label>
+          <label class="field" data-show="vmess">加密方式
+            <select id="f-vmess-cipher">
+              <option selected>auto</option>
+              <option>aes-128-gcm</option>
+              <option>chacha20-poly1305</option>
+              <option>none</option>
+              <option>zero</option>
+            </select>
+          </label>
+          <label class="field" data-show="vmess">alterId
+            <input type="number" id="f-alterid" min="0" value="0">
+          </label>
+          <label class="field" data-show="vless">Flow
+            <select id="f-flow">
+              <option value="">（无）</option>
+              <option>xtls-rprx-vision</option>
+            </select>
+          </label>
+          <label class="field" data-show="vmess vless trojan">传输协议
+            <select id="f-network">
+              <option value="tcp">tcp</option>
+              <option value="ws">ws</option>
+              <option value="grpc">grpc</option>
+              <option value="h2">h2</option>
+            </select>
+          </label>
+          <label class="field" data-show="vmess vless trojan" data-net="ws h2">路径 (path)
+            <input type="text" id="f-path" placeholder="/">
+          </label>
+          <label class="field" data-show="vmess vless trojan" data-net="ws h2">Host 头
+            <input type="text" id="f-host">
+          </label>
+          <label class="field" data-show="vmess vless trojan" data-net="grpc">gRPC serviceName
+            <input type="text" id="f-service">
+          </label>
+          <label class="field" data-show="http vmess vless trojan hysteria2">SNI / ServerName
+            <input type="text" id="f-sni" placeholder="可留空">
+          </label>
+          <label class="field" data-show="vmess vless trojan">客户端指纹
+            <select id="f-fp">
+              <option value="">（不设置）</option>
+              <option>chrome</option>
+              <option>firefox</option>
+              <option>safari</option>
+              <option>ios</option>
+              <option>edge</option>
+              <option>random</option>
+            </select>
+          </label>
+          <label class="field" data-show="vless">Reality 公钥 (pbk)
+            <input type="text" id="f-pbk" placeholder="不用 Reality 就留空">
+          </label>
+          <label class="field" data-show="vless">Reality short-id (sid)
+            <input type="text" id="f-sid">
+          </label>
+          <label class="field" data-show="hysteria2">混淆类型 (obfs)
+            <select id="f-obfs">
+              <option value="">（无）</option>
+              <option>salamander</option>
+            </select>
+          </label>
+          <label class="field" data-show="hysteria2">混淆密码
+            <input type="text" id="f-obfs-pass" autocomplete="off">
+          </label>
+        </div>
+        <div class="row">
+          <label class="check" data-show="http socks5 vmess vless"><input type="checkbox" id="f-tls"> 启用 TLS</label>
+          <label class="check" data-show="http socks5 vmess vless trojan hysteria2"><input type="checkbox" id="f-insecure"> 跳过证书验证</label>
+          <label class="check" data-show="socks5 ss vmess vless trojan"><input type="checkbox" id="f-udp" checked> 允许 UDP</label>
+        </div>
+        <p class="hint" data-show="http">链接是 <code>https://</code> 的 HTTPS 代理要勾选「启用 TLS」；普通 HTTP 代理不要勾。</p>
+        <p class="hint" data-show="vless">填写了 Reality 公钥时会自动启用 TLS + Reality。</p>
+        <div class="row">
+          <button type="button" class="btn primary" id="btn-add">添加节点</button>
+          <button type="button" class="btn" id="btn-cancel-edit" hidden>取消编辑</button>
+          <button type="button" class="btn" id="btn-reset-form">重置表单</button>
+        </div>
+        <div id="form-msg" class="msg"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>节点列表 <span id="node-count" class="tag">0</span></h2>
+      <ul class="nodes" id="node-list"></ul>
+      <p class="empty" id="node-empty">还没有节点。从链接导入，或者手动填写后添加。</p>
+      <div class="row">
+        <button type="button" class="btn danger" id="btn-clear-nodes">清空节点</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>全局选项</h2>
+      <div class="grid">
+        <label class="field">代理模式 (mode)
+          <select id="o-mode">
+            <option value="rule" selected>rule 规则</option>
+            <option value="global">global 全局</option>
+            <option value="direct">direct 直连</option>
+          </select>
+        </label>
+        <label class="field">分流规则
+          <select id="o-rules">
+            <option value="all" selected>全部走代理（局域网直连）</option>
+            <option value="cn">国内直连，其余走代理</option>
+            <option value="minimal">最简（只有 MATCH）</option>
+          </select>
+        </label>
+        <label class="field">DNS
+          <select id="o-dns">
+            <option value="fakeip" selected>fake-ip（推荐，防 DNS 泄露）</option>
+            <option value="none">不写（CMFA 会自动补 fake-ip）</option>
+          </select>
+        </label>
+        <label class="field">混合端口 (mixed-port)
+          <input type="number" id="o-port" min="1" max="65535" value="7890">
+        </label>
+        <label class="field">日志级别
+          <select id="o-log">
+            <option>silent</option>
+            <option>error</option>
+            <option>warning</option>
+            <option selected>info</option>
+            <option>debug</option>
+          </select>
+        </label>
+        <label class="field">策略组名称
+          <input type="text" id="o-group" value="PROXY">
+        </label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="o-auto" checked> 多个节点时添加「自动选择」测速组</label>
+        <label class="check"><input type="checkbox" id="o-ipv6"> 启用 IPv6</label>
+        <label class="check"><input type="checkbox" id="o-lan"> 允许局域网连接 (allow-lan)</label>
+      </div>
+      <p class="hint" id="global-hint">选择 global 模式后，记得在 App 的「代理」页里，把 <b>GLOBAL</b> 组切换成你的节点或策略组，否则默认会走 DIRECT 直连。</p>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="output-section">
+      <h2>生成的配置</h2>
+      <textarea id="output" readonly spellcheck="false" rows="24"></textarea>
+      <div class="row">
+        <button type="button" class="btn primary" id="btn-copy">复制</button>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px;">
+          文件名 <input type="text" id="o-filename" value="config.yaml" style="width:160px">
+        </label>
+        <button type="button" class="btn" id="btn-download">下载 .yaml</button>
+      </div>
+      <div id="out-msg" class="msg"></div>
+      <p class="notice" style="margin-top:12px">导入方法：把文件放到手机上，打开 ClashMetaForAndroid → 配置 → 右上角 + → 文件 → 选择这个 YAML → 保存，然后选中它并启动。<br>
+        配置里包含明文密码，不要把文件分享给别人，也不要上传到公共的订阅转换网站。</p>
+    </section>
+  </div>
+</main>
+
+<main id="page-chain" hidden>
+  <div class="col">
+    <section>
+      <h2>链路示意</h2>
+      <div class="flow">
+        手机 → <b>前置节点</b>（订阅里的节点，在 App 里随意切换） → <b id="c-flow-exit">出口节点</b>（固定） → 网站
+      </div>
+      <p class="hint">导入后在 App 代理页切换「前置节点」组，就是切换前置线路；「出口」组固定选你的出口节点。</p>
+    </section>
+
+    <section>
+      <h2>① 订阅（前置节点来源）</h2>
+      <div id="c-subs"></div>
+      <div class="row" style="margin-top:4px">
+        <button type="button" class="btn" id="c-add-sub">+ 添加订阅</button>
+      </div>
+      <p class="hint">订阅链接可以在 App 的「配置 → 编辑」里复制。有多个订阅时，节点名会自动加上「订阅名-」前缀，避免重名。</p>
+    </section>
+
+    <section>
+      <h2>② 出口节点（固定）</h2>
+      <label class="field">出口节点链接
+        <input type="text" id="c-exit-link" spellcheck="false" autocomplete="off" placeholder="https://tom:密码@1.2.3.4:3129">
+      </label>
+      <div class="grid" style="margin-top:10px">
+        <label class="field">出口节点名称
+          <input type="text" id="c-exit-name" placeholder="我的HTTPS">
+        </label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="c-exit-insecure"> 链接未指定时，跳过证书验证</label>
+      </div>
+      <p class="hint">支持的链接格式和「单节点配置」页相同。直接用 IP 连接的 HTTPS 代理，通常需要勾选跳过证书验证。</p>
+      <div id="c-exit-msg" class="msg"></div>
+    </section>
+
+    <section>
+      <h2>③ 选项</h2>
+      <div class="grid">
+        <label class="field">只保留名称匹配的节点（正则，可留空）
+          <input type="text" id="c-filter" placeholder="例如 地球|娜美克星">
+        </label>
+        <label class="field">排除名称匹配的节点（正则）
+          <input type="text" id="c-exclude" value="剩余|到期|过期|流量|官网|套餐|重置">
+        </label>
+        <label class="field">订阅更新间隔（小时）
+          <input type="number" id="c-interval" min="1" value="24">
+        </label>
+        <label class="field">代理模式 (mode)
+          <select id="c-mode">
+            <option value="rule" selected>rule 规则（推荐）</option>
+            <option value="global">global 全局</option>
+          </select>
+        </label>
+        <label class="field">分流规则
+          <select id="c-rules">
+            <option value="all" selected>全部走链式（局域网直连）</option>
+            <option value="cn">国内直连，其余走链式</option>
+            <option value="minimal">最简（只有 MATCH）</option>
+          </select>
+        </label>
+        <label class="field">DNS
+          <select id="c-dns">
+            <option value="fakeip" selected>fake-ip（推荐，防 DNS 泄露）</option>
+            <option value="none">不写（CMFA 会自动补 fake-ip）</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="c-auto" checked> 前置节点组加入「自动最快」</label>
+        <label class="check"><input type="checkbox" id="c-direct" checked> 出口组加入 DIRECT（方便临时直连）</label>
+      </div>
+      <p class="hint" id="c-global-hint" hidden>全局模式下，流量走的是 <b>GLOBAL</b> 组，记得在 App 里把 GLOBAL 切换成「出口」或你的出口节点，否则默认会走 DIRECT 直连，链式代理不会生效。</p>
+      <div id="c-opt-msg" class="msg err"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="output-section">
+      <h2>生成的链式配置</h2>
+      <textarea id="c-output" readonly spellcheck="false" rows="24"></textarea>
+      <div class="row">
+        <button type="button" class="btn primary" id="c-copy">复制</button>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px;">
+          文件名 <input type="text" id="c-filename" value="chain.yaml" style="width:160px">
+        </label>
+        <button type="button" class="btn" id="c-download">下载 .yaml</button>
+      </div>
+      <div id="c-out-msg" class="msg"></div>
+      <p class="notice" style="margin-top:12px">导入：App → 配置 → + → 文件 → 选择这个 YAML，然后<b>只启用这一个配置</b>。首次启动会自动下载订阅，可以在「外部资源」页查看或手动更新。<br>
+        出口代理如果设置了 IP 白名单，每个前置节点的出口 IP 都要加进去，否则换前置节点后会连不上。</p>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+
+  const state = {
+    nodes: [],       // 节点（内部规范格式，见 toClash）
+    editing: -1,     // 正在编辑的节点下标
+  };
+
+  /* ---------------- 工具函数 ---------------- */
+
+  function dec(s) {
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
+
+  function b64decode(str) {
+    let s = str.trim().replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  }
+
+  function truthy(v) {
+    return ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
+  }
+
+  /* ---------------- YAML 输出 ---------------- */
+
+  const YAML_RESERVED = /^(true|false|yes|no|on|off|y|n|null|~)$/i;
+
+  function yScalar(v) {
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    const s = String(v);
+    if (/^[A-Za-z_][A-Za-z0-9_.\/-]*$/.test(s) && !YAML_RESERVED.test(s)) return s;
+    // JSON 字符串是合法的 YAML 双引号字符串
+    return JSON.stringify(s);
+  }
+
+  function isEmpty(v) {
+    if (v === undefined || v === null || v === '') return true;
+    if (Array.isArray(v)) return v.length === 0;
+    if (typeof v === 'object') return Object.keys(v).every((k) => isEmpty(v[k]));
+    return false;
+  }
+
+  function dumpObj(obj, ind) {
+    const pad = ' '.repeat(ind);
+    const lines = [];
+    for (const [k, v] of Object.entries(obj)) {
+      if (isEmpty(v)) continue;
+      const key = pad + yScalar(k) + ':';
+      if (Array.isArray(v)) {
+        lines.push(key, ...dumpArr(v, ind + 2));
+      } else if (typeof v === 'object') {
+        lines.push(key, ...dumpObj(v, ind + 2));
+      } else {
+        lines.push(key + ' ' + yScalar(v));
+      }
+    }
+    return lines;
+  }
+
+  function dumpArr(arr, ind) {
+    const pad = ' '.repeat(ind);
+    const lines = [];
+    for (const item of arr) {
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const sub = dumpObj(item, ind + 2);
+        if (!sub.length) { lines.push(pad + '- {}'); continue; }
+        sub[0] = pad + '- ' + sub[0].slice(ind + 2);
+        lines.push(...sub);
+      } else {
+        lines.push(pad + '- ' + yScalar(item));
+      }
+    }
+    return lines;
+  }
+
+  /* ---------------- 内部格式 → Clash 节点 ---------------- */
+
+  function applyTransport(p, s) {
+    const net = s.network || 'tcp';
+    if (net === 'tcp') return;
+    p.network = net;
+    if (net === 'ws') {
+      p['ws-opts'] = { path: s.path || '/', headers: s.host ? { Host: s.host } : undefined };
+    } else if (net === 'grpc') {
+      p['grpc-opts'] = { 'grpc-service-name': s.serviceName || '' };
+    } else if (net === 'h2') {
+      p['h2-opts'] = { host: s.host ? s.host.split(',').map((x) => x.trim()) : undefined, path: s.path || '/' };
+    }
+  }
+
+  function alpnList(s) {
+    return s.alpn ? s.alpn.split(',').map((x) => x.trim()).filter(Boolean) : undefined;
+  }
+
+  function toClash(s) {
+    const p = { name: s.name, type: s.type, server: s.server, port: Number(s.port) };
+    switch (s.type) {
+      case 'http':
+        p.username = s.username;
+        p.password = s.password;
+        if (s.tls) {
+          p.tls = true;
+          p.sni = s.sni;
+          p['skip-cert-verify'] = !!s.insecure;
+        }
+        break;
+      case 'socks5':
+        p.username = s.username;
+        p.password = s.password;
+        if (s.tls) {
+          p.tls = true;
+          p['skip-cert-verify'] = !!s.insecure;
+        }
+        p.udp = !!s.udp;
+        break;
+      case 'ss':
+        p.cipher = s.cipher;
+        p.password = s.password;
+        p.udp = !!s.udp;
+        if (s.plugin) {
+          p.plugin = s.plugin;
+          p['plugin-opts'] = s.pluginOpts;
+        }
+        break;
+      case 'vmess':
+        p.uuid = s.uuid;
+        p.alterId = Number(s.alterId) || 0;
+        p.cipher = s.cipher || 'auto';
+        p.udp = !!s.udp;
+        if (s.tls) {
+          p.tls = true;
+          p.servername = s.sni;
+          p.alpn = alpnList(s);
+          p['skip-cert-verify'] = !!s.insecure;
+        }
+        p['client-fingerprint'] = s.fp;
+        applyTransport(p, s);
+        break;
+      case 'vless':
+        p.uuid = s.uuid;
+        p.flow = s.flow;
+        p.udp = !!s.udp;
+        if (s.tls || s.pbk) {
+          p.tls = true;
+          p.servername = s.sni;
+          p.alpn = alpnList(s);
+          if (s.pbk) {
+            p['reality-opts'] = { 'public-key': s.pbk, 'short-id': s.sid };
+          } else {
+            p['skip-cert-verify'] = !!s.insecure;
+          }
+        }
+        p['client-fingerprint'] = s.fp || (s.pbk ? 'chrome' : '');
+        applyTransport(p, s);
+        break;
+      case 'trojan':
+        p.password = s.password;
+        p.udp = !!s.udp;
+        p.sni = s.sni;
+        p.alpn = alpnList(s);
+        p['skip-cert-verify'] = !!s.insecure;
+        p['client-fingerprint'] = s.fp;
+        applyTransport(p, s);
+        break;
+      case 'hysteria2':
+        p.password = s.password;
+        if (s.ports) p.ports = s.ports;
+        p.sni = s.sni;
+        p.alpn = alpnList(s);
+        p['skip-cert-verify'] = !!s.insecure;
+        if (s.obfs) {
+          p.obfs = s.obfs;
+          p['obfs-password'] = s.obfsPassword;
+        }
+        break;
+    }
+    return p;
+  }
+
+  function validate(s) {
+    if (!s.server) return '缺少服务器地址';
+    if (!Number.isInteger(Number(s.port)) || s.port < 1 || s.port > 65535) return '端口无效';
+    if ((s.type === 'vmess' || s.type === 'vless') && !s.uuid) return '缺少 UUID';
+    if (['ss', 'trojan', 'hysteria2'].includes(s.type) && !s.password) return '缺少密码';
+    if (s.type === 'ss' && !s.cipher) return '缺少加密方式';
+    return '';
+  }
+
+  /* ---------------- 链接解析 ---------------- */
+
+  // 找到分隔 userinfo 和主机的那个 "@"。
+  // 密码里可能含有未编码的 @ # ? /，所以不能简单按 # ? 切分：
+  // 从后往前找，优先选择后面紧跟 "主机:端口" 的 "@"。
+  const HOST_AFTER_AT = /^(\[[0-9a-fA-F:.]+\]|[A-Za-z0-9.\-_%]+)(:\d+(?:[,-]\d+)*)?(?=[\/?#]|$)/;
+
+  function findUserinfoAt(rest) {
+    let fallback = -1;
+    for (let i = rest.lastIndexOf('@'); i >= 0; i = rest.lastIndexOf('@', i - 1)) {
+      const m = rest.slice(i + 1).match(HOST_AFTER_AT);
+      if (!m) continue;
+      if (m[2]) return i;
+      if (fallback < 0) fallback = i;
+      if (i === 0) break;
+    }
+    return fallback;
+  }
+
+  function splitLink(link) {
+    const m = link.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/([\s\S]*)$/);
+    if (!m) throw new Error('不是有效的链接（缺少 "协议://" 前缀）');
+    let rest = m[2];
+    let userinfo = null;
+    const at = findUserinfoAt(rest);
+    if (at >= 0) {
+      userinfo = rest.slice(0, at);
+      rest = rest.slice(at + 1);
+    }
+    let name = '';
+    const h = rest.indexOf('#');
+    if (h >= 0) { name = dec(rest.slice(h + 1)).trim(); rest = rest.slice(0, h); }
+    let query = '';
+    const q = rest.indexOf('?');
+    if (q >= 0) { query = rest.slice(q + 1); rest = rest.slice(0, q); }
+    const params = {};
+    query.split('&').forEach((kv) => {
+      if (!kv) return;
+      const i = kv.indexOf('=');
+      const k = i < 0 ? kv : kv.slice(0, i);
+      const v = i < 0 ? '' : kv.slice(i + 1);
+      params[dec(k)] = dec(v);
+    });
+    // hostport 在没有 userinfo 时也可能是一整段 base64（vmess / 旧版 ss）
+    return { scheme: m[1].toLowerCase(), userinfo, hostport: rest, params, name };
+  }
+
+  // 返回 { host, port, portRaw }，portRaw 保留原始字符串（hysteria2 端口跳跃用）
+  function parseHostPort(hp) {
+    hp = hp.split('/')[0];
+    let host = hp;
+    let portRaw = '';
+    if (hp.startsWith('[')) {
+      const e = hp.indexOf(']');
+      if (e < 0) throw new Error('IPv6 地址格式错误');
+      host = hp.slice(1, e);
+      const r = hp.slice(e + 1);
+      if (r.startsWith(':')) portRaw = r.slice(1);
+    } else {
+      const i = hp.lastIndexOf(':');
+      if (i >= 0) { host = hp.slice(0, i); portRaw = hp.slice(i + 1); }
+    }
+    host = dec(host);
+    if (!host) throw new Error('缺少服务器地址');
+    const pm = portRaw.match(/^\d+/);
+    return { host, port: pm ? Number(pm[0]) : undefined, portRaw };
+  }
+
+  function userPass(userinfo) {
+    if (userinfo === null || userinfo === '') return { username: '', password: '' };
+    const i = userinfo.indexOf(':');
+    if (i >= 0) return { username: dec(userinfo.slice(0, i)), password: dec(userinfo.slice(i + 1)) };
+    // v2rayN 风格：base64(user:pass)
+    try {
+      const d = b64decode(dec(userinfo));
+      const j = d.indexOf(':');
+      if (j > 0 && /^[\x20-\x7e]+$/.test(d)) return { username: d.slice(0, j), password: d.slice(j + 1) };
+    } catch (e) { /* 不是 base64 */ }
+    return { username: dec(userinfo), password: '' };
+  }
+
+  function streamFromParams(p, s) {
+    let net = (p.type || 'tcp').toLowerCase();
+    if (net === 'http') net = 'h2';
+    s.network = ['tcp', 'ws', 'grpc', 'h2'].includes(net) ? net : 'tcp';
+    if (net !== s.network) s.warn = `传输协议 ${net} 暂不支持，已按 tcp 处理`;
+    s.path = p.path || '';
+    s.host = p.host || '';
+    s.serviceName = p.serviceName || p.servicename || '';
+    s.sni = p.sni || p.peer || p.servername || '';
+    s.fp = p.fp || '';
+    s.alpn = p.alpn || '';
+    s.insecure = truthy(p.allowInsecure) || truthy(p.insecure) || truthy(p['skip-cert-verify']);
+    const sec = (p.security || '').toLowerCase();
+    s.tls = sec === 'tls' || sec === 'reality' || sec === 'xtls';
+    if (sec === 'reality') { s.pbk = p.pbk || ''; s.sid = p.sid || ''; }
+    s.flow = p.flow || '';
+  }
+
+  function parsePlainProxy(l, type, isTls, defaultPort) {
+    const { host, port } = parseHostPort(l.hostport);
+    const up = userPass(l.userinfo);
+    const p = l.params;
+    const sec = (p.security || '').toLowerCase();
+    return {
+      type,
+      name: l.name,
+      server: host,
+      port: port || defaultPort,
+      username: up.username,
+      password: up.password,
+      tls: isTls || sec === 'tls' || truthy(p.tls),
+      sni: p.sni || p.peer || '',
+      insecure: truthy(p.allowInsecure) || truthy(p.insecure) || truthy(p['skip-cert-verify']),
+      udp: true,
+    };
+  }
+
+  function parseSsPlugin(str) {
+    const parts = str.split(';');
+    const kv = {};
+    parts.slice(1).forEach((x) => {
+      const i = x.indexOf('=');
+      if (i < 0) kv[x] = true; else kv[x.slice(0, i)] = x.slice(i + 1);
+    });
+    const name = parts[0];
+    if (/obfs/.test(name)) {
+      return { plugin: 'obfs', pluginOpts: { mode: kv.obfs || 'http', host: kv['obfs-host'] } };
+    }
+    if (/v2ray/.test(name)) {
+      return {
+        plugin: 'v2ray-plugin',
+        pluginOpts: { mode: kv.mode || 'websocket', tls: kv.tls === true || kv.tls === 'true', host: kv.host, path: kv.path },
+      };
+    }
+    throw new Error('不支持的 SS 插件：' + name);
+  }
+
+  const parsers = {
+    http: (l) => parsePlainProxy(l, 'http', false, 80),
+    https: (l) => parsePlainProxy(l, 'http', true, 443),
+    socks: (l) => parsePlainProxy(l, 'socks5', false, 1080),
+    socks5: (l) => parsePlainProxy(l, 'socks5', false, 1080),
+    socks5h: (l) => parsePlainProxy(l, 'socks5', false, 1080),
+
+    ss(l) {
+      let method, password, hp;
+      if (l.userinfo === null) {
+        // 旧格式：ss://base64(method:password@host:port)
+        const d = b64decode(l.hostport);
+        const at = d.lastIndexOf('@');
+        if (at < 0) throw new Error('SS 链接格式错误');
+        const mp = d.slice(0, at);
+        hp = d.slice(at + 1);
+        const i = mp.indexOf(':');
+        method = mp.slice(0, i);
+        password = mp.slice(i + 1);
+      } else {
+        hp = l.hostport;
+        let ui = dec(l.userinfo);
+        if (!ui.includes(':')) ui = b64decode(ui);
+        const i = ui.indexOf(':');
+        if (i < 0) throw new Error('SS 链接缺少加密方式或密码');
+        method = ui.slice(0, i);
+        password = ui.slice(i + 1);
+      }
+      const { host, port } = parseHostPort(hp);
+      if (!port) throw new Error('SS 链接缺少端口');
+      const s = { type: 'ss', name: l.name, server: host, port, cipher: method, password, udp: true };
+      if (l.params.plugin) Object.assign(s, parseSsPlugin(l.params.plugin));
+      return s;
+    },
+
+    vmess(l) {
+      let j = null;
+      if (l.userinfo === null) {
+        try { j = JSON.parse(b64decode(l.hostport)); } catch (e) { /* 可能是标准 URL 格式 */ }
+      }
+      if (!j) {
+        const { host, port } = parseHostPort(l.hostport);
+        const s = { type: 'vmess', name: l.name, server: host, port, uuid: dec(l.userinfo || ''), alterId: 0, cipher: l.params.encryption || 'auto', udp: true };
+        streamFromParams(l.params, s);
+        return s;
+      }
+      const net = (j.net || 'tcp').toLowerCase();
+      return {
+        type: 'vmess',
+        name: j.ps || l.name,
+        server: j.add,
+        port: Number(j.port),
+        uuid: j.id,
+        alterId: Number(j.aid) || 0,
+        cipher: j.scy || 'auto',
+        udp: true,
+        tls: j.tls === 'tls',
+        sni: j.sni || '',
+        alpn: j.alpn || '',
+        fp: j.fp || '',
+        insecure: truthy(j.allowInsecure) || truthy(j['skip-cert-verify']),
+        network: ['ws', 'grpc', 'h2'].includes(net) ? net : (net === 'http' ? 'h2' : 'tcp'),
+        path: net === 'grpc' ? '' : (j.path || ''),
+        host: j.host || '',
+        serviceName: net === 'grpc' ? (j.path || '') : '',
+      };
+    },
+
+    vless(l) {
+      const { host, port } = parseHostPort(l.hostport);
+      const s = { type: 'vless', name: l.name, server: host, port, uuid: dec(l.userinfo || ''), udp: true };
+      streamFromParams(l.params, s);
+      return s;
+    },
+
+    trojan(l) {
+      const { host, port } = parseHostPort(l.hostport);
+      const s = { type: 'trojan', name: l.name, server: host, port: port || 443, password: dec(l.userinfo || ''), udp: true };
+      streamFromParams(l.params, s);
+      s.tls = true;
+      return s;
+    },
+
+    hysteria2(l) {
+      const { host, port, portRaw } = parseHostPort(l.hostport);
+      const p = l.params;
+      const s = {
+        type: 'hysteria2',
+        name: l.name,
+        server: host,
+        port: port || 443,
+        password: dec(l.userinfo || ''),
+        sni: p.sni || p.peer || '',
+        alpn: p.alpn || '',
+        insecure: truthy(p.insecure) || truthy(p.allowInsecure),
+        obfs: p.obfs || '',
+        obfsPassword: p['obfs-password'] || '',
+      };
+      const ports = p.mport || (/[,-]/.test(portRaw) ? portRaw : '');
+      if (ports) s.ports = ports;
+      return s;
+    },
+  };
+  parsers.hy2 = parsers.hysteria2;
+
+  function parseLink(link, defaultInsecure) {
+    const l = splitLink(link);
+    const fn = parsers[l.scheme];
+    if (!fn) throw new Error(`暂不支持的协议：${l.scheme}://`);
+    const s = fn(l);
+    if (defaultInsecure && !/insecure|allowInsecure|skip-cert-verify|"allowInsecure"/i.test(link)) s.insecure = true;
+    const err = validate(s);
+    if (err) throw new Error(err);
+    return s;
+  }
+
+  // 输入可能是 Base64 编码的整份订阅
+  function expandInput(text) {
+    const trimmed = text.trim();
+    if (trimmed && !trimmed.includes('://')) {
+      try {
+        const d = b64decode(trimmed);
+        if (d.includes('://')) return d;
+      } catch (e) { /* 不是 base64 */ }
+    }
+    return text;
+  }
+
+  /* ---------------- 节点管理 ---------------- */
+
+  function uniqueName(name, exclude) {
+    const taken = new Set(state.nodes.filter((_, i) => i !== exclude).map((n) => n.name));
+    taken.add('DIRECT'); taken.add('REJECT'); taken.add('GLOBAL');
+    taken.add(groupName()); taken.add('自动选择');
+    if (!taken.has(name)) return name;
+    let i = 2;
+    while (taken.has(`${name} ${i}`)) i++;
+    return `${name} ${i}`;
+  }
+
+  function defaultName(s) {
+    const label = s.type === 'http' ? (s.tls ? 'HTTPS' : 'HTTP') : s.type.toUpperCase();
+    return `${label} ${s.server}:${s.port}`;
+  }
+
+  function addNode(s, index) {
+    s.name = uniqueName((s.name || '').trim() || defaultName(s), index);
+    if (index >= 0) state.nodes[index] = s; else state.nodes.push(s);
+  }
+
+  function renderNodes() {
+    const list = $('node-list');
+    list.textContent = '';
+    state.nodes.forEach((n, i) => {
+      const li = document.createElement('li');
+      if (i === state.editing) li.className = 'editing';
+
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = n.type === 'http' && n.tls ? 'https' : n.type;
+
+      const info = document.createElement('div');
+      info.className = 'node-info';
+      const nm = document.createElement('div');
+      nm.className = 'node-name';
+      nm.textContent = n.name;
+      const sub = document.createElement('div');
+      sub.className = 'node-sub';
+      sub.textContent = `${n.server}:${n.port}` + (n.network && n.network !== 'tcp' ? ` · ${n.network}` : '') + (n.pbk ? ' · reality' : '');
+      info.append(nm, sub);
+
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'btn';
+      edit.textContent = '编辑';
+      edit.onclick = () => startEdit(i);
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn danger';
+      del.textContent = '删除';
+      del.onclick = () => {
+        state.nodes.splice(i, 1);
+        if (state.editing === i) cancelEdit();
+        else if (state.editing > i) state.editing--;
+        refresh();
+      };
+
+      li.append(tag, info, edit, del);
+      list.append(li);
+    });
+    $('node-empty').hidden = state.nodes.length > 0;
+    $('node-count').textContent = state.nodes.length;
+  }
+
+  /* ---------------- 表单 ---------------- */
+
+  const val = (id) => $(id).value;
+  const chk = (id) => $(id).checked;
+
+  function updateVisibility() {
+    const t = val('f-type');
+    const net = val('f-network');
+    document.querySelectorAll('#tab-manual [data-show]').forEach((el) => {
+      let ok = el.dataset.show.split(' ').includes(t);
+      if (ok && el.dataset.net) ok = el.dataset.net.split(' ').includes(net);
+      el.hidden = !ok;
+    });
+  }
+
+  function readForm() {
+    const t = val('f-type');
+    return {
+      type: t,
+      name: val('f-name').trim(),
+      server: val('f-server').trim(),
+      port: parseInt(val('f-port'), 10),
+      username: val('f-username'),
+      password: val('f-password'),
+      uuid: val('f-uuid').trim(),
+      cipher: t === 'ss' ? val('f-ss-cipher') : val('f-vmess-cipher'),
+      alterId: parseInt(val('f-alterid'), 10) || 0,
+      flow: val('f-flow'),
+      network: val('f-network'),
+      path: val('f-path').trim(),
+      host: val('f-host').trim(),
+      serviceName: val('f-service').trim(),
+      sni: val('f-sni').trim(),
+      fp: val('f-fp'),
+      pbk: val('f-pbk').trim(),
+      sid: val('f-sid').trim(),
+      obfs: val('f-obfs'),
+      obfsPassword: val('f-obfs-pass'),
+      tls: t === 'trojan' || t === 'hysteria2' ? true : chk('f-tls'),
+      insecure: chk('f-insecure'),
+      udp: chk('f-udp'),
+    };
+  }
+
+  function setSelect(id, v) {
+    const sel = $(id);
+    v = v || '';
+    if (![...sel.options].some((o) => o.value === v)) {
+      const o = document.createElement('option');
+      o.value = o.textContent = v;
+      sel.append(o);
+    }
+    sel.value = v;
+  }
+
+  function fillForm(s) {
+    setSelect('f-type', s.type);
+    $('f-name').value = s.name || '';
+    $('f-server').value = s.server || '';
+    $('f-port').value = s.port || '';
+    $('f-username').value = s.username || '';
+    $('f-password').value = s.password || '';
+    $('f-uuid').value = s.uuid || '';
+    if (s.type === 'ss') setSelect('f-ss-cipher', s.cipher);
+    if (s.type === 'vmess') setSelect('f-vmess-cipher', s.cipher || 'auto');
+    $('f-alterid').value = s.alterId || 0;
+    setSelect('f-flow', s.flow);
+    setSelect('f-network', s.network || 'tcp');
+    $('f-path').value = s.path || '';
+    $('f-host').value = s.host || '';
+    $('f-service').value = s.serviceName || '';
+    $('f-sni').value = s.sni || '';
+    setSelect('f-fp', s.fp);
+    $('f-pbk').value = s.pbk || '';
+    $('f-sid').value = s.sid || '';
+    setSelect('f-obfs', s.obfs);
+    $('f-obfs-pass').value = s.obfsPassword || '';
+    $('f-tls').checked = !!s.tls;
+    $('f-insecure').checked = !!s.insecure;
+    $('f-udp').checked = s.udp !== false;
+    updateVisibility();
+  }
+
+  function resetForm() {
+    const type = val('f-type');
+    fillForm({ type, udp: true });
+    $('form-msg').textContent = '';
+  }
+
+  function startEdit(i) {
+    state.editing = i;
+    switchTab('manual');
+    fillForm(state.nodes[i]);
+    $('btn-add').textContent = '保存修改';
+    $('btn-cancel-edit').hidden = false;
+    renderNodes();
+  }
+
+  function cancelEdit() {
+    state.editing = -1;
+    $('btn-add').textContent = '添加节点';
+    $('btn-cancel-edit').hidden = true;
+    resetForm();
+    renderNodes();
+  }
+
+  function switchTab(name) {
+    document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+    $('tab-link').hidden = name !== 'link';
+    $('tab-manual').hidden = name !== 'manual';
+  }
+
+  /* ---------------- 生成配置 ---------------- */
+
+  function groupName() {
+    return val('o-group').trim() || 'PROXY';
+  }
+
+  const LAN_RULES = [
+    'DOMAIN-SUFFIX,local,DIRECT',
+    'IP-CIDR,127.0.0.0/8,DIRECT,no-resolve',
+    'IP-CIDR,10.0.0.0/8,DIRECT,no-resolve',
+    'IP-CIDR,172.16.0.0/12,DIRECT,no-resolve',
+    'IP-CIDR,192.168.0.0/16,DIRECT,no-resolve',
+    'IP-CIDR,100.64.0.0/10,DIRECT,no-resolve',
+    'IP-CIDR6,fe80::/10,DIRECT,no-resolve',
+  ];
+
+  function buildRules(group, template) {
+    switch (template) {
+      case 'minimal':
+        return [`MATCH,${group}`];
+      case 'cn':
+        return [
+          ...LAN_RULES,
+          'GEOSITE,cn,DIRECT',
+          // no-resolve：不在本地解析域名，避免把要走代理的域名发给国内 DNS
+          'GEOIP,CN,DIRECT,no-resolve',
+          `MATCH,${group}`,
+        ];
+      default:
+        return [...LAN_RULES, `MATCH,${group}`];
+    }
+  }
+
+  function generate() {
+    if (!state.nodes.length) {
+      return '# 还没有节点。\n# 在左侧粘贴代理链接，或者手动填写节点信息后点击添加。\n';
+    }
+    const group = groupName();
+    const proxies = state.nodes.map(toClash);
+    const names = proxies.map((p) => p.name);
+    const withAuto = chk('o-auto') && names.length > 1;
+    const ipv6 = chk('o-ipv6');
+
+    const groups = [
+      { name: group, type: 'select', proxies: [...(withAuto ? ['自动选择'] : []), ...names, 'DIRECT'] },
+    ];
+    if (withAuto) {
+      groups.push({
+        name: '自动选择',
+        type: 'url-test',
+        url: 'https://www.gstatic.com/generate_204',
+        interval: 300,
+        tolerance: 50,
+        proxies: names,
+      });
+    }
+
+    const general = {
+      'mixed-port': Number(val('o-port')) || 7890,
+      'allow-lan': chk('o-lan'),
+      mode: val('o-mode'),
+      'log-level': val('o-log'),
+      ipv6,
+    };
+
+    const sections = [
+      `# Clash / mihomo 配置，由 Clash 配置生成器生成于 ${new Date().toLocaleString()}`,
+      dumpObj(general, 0).join('\n'),
+    ];
+
+    if (val('o-dns') === 'fakeip') {
+      sections.push(dumpObj({
+        dns: {
+          enable: true,
+          ipv6,
+          'enhanced-mode': 'fake-ip',
+          'fake-ip-range': '198.18.0.1/16',
+          'fake-ip-filter': ['*.lan', '*.local', '+.msftconnecttest.com', '+.msftncsi.com', 'localhost.ptlogin2.qq.com'],
+          'default-nameserver': ['223.5.5.5', '119.29.29.29'],
+          nameserver: ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'],
+        },
+      }, 0).join('\n'));
+    }
+
+    sections.push(
+      dumpObj({ proxies }, 0).join('\n'),
+      dumpObj({ 'proxy-groups': groups }, 0).join('\n'),
+      dumpObj({ rules: buildRules(group, val('o-rules')) }, 0).join('\n'),
+    );
+
+    return sections.join('\n\n') + '\n';
+  }
+
+  function refresh() {
+    renderNodes();
+    $('output').value = generate();
+    $('global-hint').hidden = val('o-mode') !== 'global';
+  }
+
+  /* ---------------- 事件 ---------------- */
+
+  document.querySelectorAll('.tabs button').forEach((b) => {
+    b.onclick = () => switchTab(b.dataset.tab);
+  });
+
+  $('f-type').onchange = () => {
+    const t = val('f-type');
+    // 切换协议时给出常见的 TLS 默认值
+    $('f-tls').checked = false;
+    if (!$('f-port').value) $('f-port').placeholder = { http: '例如 3129', socks5: '例如 1080', ss: '例如 8388' }[t] || '例如 443';
+    updateVisibility();
+  };
+  $('f-network').onchange = updateVisibility;
+
+  $('btn-add').onclick = () => {
+    const s = readForm();
+    const err = validate(s);
+    const msg = $('form-msg');
+    if (err) {
+      msg.className = 'msg err';
+      msg.textContent = err;
+      return;
+    }
+    const editing = state.editing;
+    addNode(s, editing);
+    if (editing >= 0) {
+      cancelEdit();
+      msg.className = 'msg ok';
+      msg.textContent = '已保存修改';
+    } else {
+      msg.className = 'msg ok';
+      msg.textContent = `已添加：${s.name}`;
+    }
+    refresh();
+  };
+  $('btn-cancel-edit').onclick = cancelEdit;
+  $('btn-reset-form').onclick = resetForm;
+
+  $('btn-parse').onclick = () => {
+    const text = expandInput($('links').value);
+    const lines = text.split(/\r?\n/).map((x) => x.trim()).filter((x) => x && !x.startsWith('#'));
+    const msg = $('link-msg');
+    if (!lines.length) {
+      msg.className = 'msg err';
+      msg.textContent = '请先粘贴链接';
+      return;
+    }
+    const errors = [];
+    const warns = [];
+    let added = 0;
+    lines.forEach((line, i) => {
+      try {
+        const s = parseLink(line, chk('link-insecure'));
+        if (s.warn) { warns.push(`第 ${i + 1} 行：${s.warn}`); delete s.warn; }
+        addNode(s, -1);
+        added++;
+      } catch (e) {
+        const short = line.length > 50 ? line.slice(0, 50) + '…' : line;
+        errors.push(`第 ${i + 1} 行（${short}）：${e.message}`);
+      }
+    });
+    msg.className = 'msg ' + (errors.length ? 'err' : 'ok');
+    msg.textContent = [`成功添加 ${added} 个节点` + (errors.length ? `，失败 ${errors.length} 个：` : ''), ...errors, ...warns].join('\n');
+    if (added && !errors.length) $('links').value = '';
+    refresh();
+  };
+  $('btn-clear-links').onclick = () => { $('links').value = ''; $('link-msg').textContent = ''; };
+
+  $('btn-clear-nodes').onclick = () => {
+    if (state.nodes.length && !confirm('确定清空全部节点？')) return;
+    state.nodes = [];
+    if (state.editing >= 0) cancelEdit();
+    refresh();
+  };
+
+  ['o-mode', 'o-rules', 'o-dns', 'o-port', 'o-log', 'o-group', 'o-auto', 'o-ipv6', 'o-lan'].forEach((id) => {
+    $(id).addEventListener('input', refresh);
+    $(id).addEventListener('change', refresh);
+  });
+
+  async function copyOutput(outputId, msgId) {
+    const ta = $(outputId);
+    const msg = $(msgId);
+    try {
+      await navigator.clipboard.writeText(ta.value);
+    } catch (e) {
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+    }
+    msg.className = 'msg ok';
+    msg.textContent = '已复制到剪贴板';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  }
+
+  function downloadOutput(outputId, filenameId, fallback) {
+    let name = val(filenameId).trim() || fallback;
+    if (!/\.ya?ml$/i.test(name)) name += '.yaml';
+    const blob = new Blob([$(outputId).value], { type: 'text/yaml;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  $('btn-copy').onclick = () => copyOutput('output', 'out-msg');
+  $('btn-download').onclick = () => downloadOutput('output', 'o-filename', 'config.yaml');
+
+  /* ---------------- 页面切换 ---------------- */
+
+  function switchPage(name) {
+    document.querySelectorAll('.page-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.page === name));
+    $('page-nodes').hidden = name !== 'nodes';
+    $('page-chain').hidden = name !== 'chain';
+    try { localStorage.setItem('clash-gen-page', name); } catch (e) { /* 存储不可用时忽略 */ }
+  }
+
+  document.querySelectorAll('.page-tabs button').forEach((b) => {
+    b.onclick = () => switchPage(b.dataset.page);
+  });
+
+  /* ---------------- 链式代理 ---------------- */
+
+  const FRONT_GROUP = '前置节点';
+  const AUTO_GROUP = '自动最快';
+  const EXIT_GROUP = '出口';
+  const RESERVED_NAMES = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE', 'GLOBAL', FRONT_GROUP, AUTO_GROUP, EXIT_GROUP];
+
+  const chain = {
+    subs: [{ name: '订阅1', url: '' }],
+  };
+
+  function renderSubs() {
+    const box = $('c-subs');
+    box.textContent = '';
+    chain.subs.forEach((sub, i) => {
+      const row = document.createElement('div');
+      row.className = 'sub-row';
+
+      const nameLabel = document.createElement('label');
+      nameLabel.className = 'field';
+      nameLabel.textContent = '名称';
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.value = sub.name;
+      name.oninput = () => { sub.name = name.value; refreshChain(); };
+      nameLabel.append(name);
+
+      const urlLabel = document.createElement('label');
+      urlLabel.className = 'field sub-url';
+      urlLabel.textContent = '订阅链接';
+      const url = document.createElement('input');
+      url.type = 'text';
+      url.spellcheck = false;
+      url.autocomplete = 'off';
+      url.placeholder = 'https://机场订阅链接';
+      url.value = sub.url;
+      url.oninput = () => { sub.url = url.value; refreshChain(); };
+      urlLabel.append(url);
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn danger';
+      del.textContent = '删除';
+      del.disabled = chain.subs.length === 1;
+      del.onclick = () => {
+        chain.subs.splice(i, 1);
+        renderSubs();
+        refreshChain();
+      };
+
+      row.append(nameLabel, urlLabel, del);
+      box.append(row);
+    });
+  }
+
+  function checkRegex(label, pattern, problems) {
+    if (!pattern) return;
+    try { new RegExp(pattern); } catch (e) { problems.push(`${label}不是有效的正则表达式：${e.message}`); }
+  }
+
+  // 返回 { exit, problems }，exit 为解析出的出口节点（内部格式）或 null
+  function readChainExit(problems) {
+    const link = val('c-exit-link').trim();
+    const msg = $('c-exit-msg');
+    msg.textContent = '';
+    if (!link) {
+      problems.push('还没有填写出口节点链接');
+      return null;
+    }
+    try {
+      const s = parseLink(link, chk('c-exit-insecure'));
+      delete s.warn;
+      s.name = val('c-exit-name').trim() || (s.type === 'http' && s.tls ? '我的HTTPS' : `我的${s.type.toUpperCase()}`);
+      if (RESERVED_NAMES.includes(s.name) || chain.subs.some((x) => x.name.trim() === s.name)) {
+        problems.push(`出口节点名称「${s.name}」和策略组或订阅名称冲突，请换一个`);
+      }
+      msg.className = 'msg ok';
+      msg.textContent = `已识别：${s.type === 'http' && s.tls ? 'https' : s.type} · ${s.server}:${s.port}` + (s.username ? ` · 用户 ${s.username}` : '');
+      return s;
+    } catch (e) {
+      msg.className = 'msg err';
+      msg.textContent = '出口节点链接解析失败：' + e.message;
+      problems.push('出口节点链接无效');
+      return null;
+    }
+  }
+
+  function generateChain() {
+    const problems = [];
+    const subs = chain.subs
+      .map((s) => ({ name: s.name.trim(), url: s.url.trim() }))
+      .filter((s) => s.name || s.url);
+
+    if (!subs.some((s) => s.url)) problems.push('至少需要填写一个订阅链接');
+    subs.forEach((s, i) => {
+      if (!s.name) problems.push(`第 ${i + 1} 个订阅缺少名称`);
+      if (s.url && !/^https?:\/\//i.test(s.url)) problems.push(`订阅「${s.name}」的链接应以 http:// 或 https:// 开头`);
+      if (!s.url) problems.push(`订阅「${s.name}」缺少链接`);
+      if (RESERVED_NAMES.includes(s.name)) problems.push(`订阅名称「${s.name}」和策略组名称冲突，请换一个`);
+    });
+    const names = subs.map((s) => s.name);
+    if (new Set(names).size !== names.length) problems.push('订阅名称不能重复');
+
+    const filter = val('c-filter').trim();
+    const exclude = val('c-exclude').trim();
+    checkRegex('「只保留」', filter, problems);
+    checkRegex('「排除」', exclude, problems);
+
+    const exit = readChainExit(problems);
+    $('c-flow-exit').textContent = exit ? exit.name : '出口节点';
+    $('c-opt-msg').textContent = '';
+
+    if (problems.length) {
+      return '# 还不能生成配置：\n' + problems.map((p) => '#  - ' + p).join('\n') + '\n';
+    }
+
+    const multi = subs.length > 1;
+    const intervalSec = Math.max(1, Number(val('c-interval')) || 24) * 3600;
+    const providers = {};
+    subs.forEach((s, i) => {
+      providers[s.name] = {
+        type: 'http',
+        url: s.url,
+        path: `./providers/sub${i + 1}.yaml`,
+        interval: intervalSec,
+        'health-check': { enable: true, url: 'https://www.gstatic.com/generate_204', interval: 600 },
+        override: multi ? { 'additional-prefix': `${s.name}-` } : undefined,
+      };
+    });
+
+    const exitProxy = toClash(exit);
+    exitProxy['dialer-proxy'] = FRONT_GROUP;
+
+    const withAuto = chk('c-auto');
+    const groups = [
+      {
+        name: FRONT_GROUP,
+        type: 'select',
+        proxies: withAuto ? [AUTO_GROUP] : undefined,
+        use: names,
+        filter: filter || undefined,
+        'exclude-filter': exclude || undefined,
+      },
+    ];
+    if (withAuto) {
+      groups.push({
+        name: AUTO_GROUP,
+        type: 'url-test',
+        use: names,
+        filter: filter || undefined,
+        'exclude-filter': exclude || undefined,
+        url: 'https://www.gstatic.com/generate_204',
+        interval: 300,
+        tolerance: 50,
+      });
+    }
+    groups.push({
+      name: EXIT_GROUP,
+      type: 'select',
+      proxies: [exit.name, ...(chk('c-direct') ? ['DIRECT'] : [])],
+    });
+
+    const general = {
+      'mixed-port': 7890,
+      'allow-lan': false,
+      mode: val('c-mode'),
+      'log-level': 'info',
+      ipv6: false,
+    };
+
+    const sections = [
+      `# 链式代理配置，由 Clash 配置生成器生成于 ${new Date().toLocaleString()}\n` +
+      `# 链路：手机 → ${FRONT_GROUP}（App 里随意切换）→ ${exit.name}（固定出口）→ 网站`,
+      dumpObj(general, 0).join('\n'),
+    ];
+
+    if (val('c-dns') === 'fakeip') {
+      sections.push(dumpObj({
+        dns: {
+          enable: true,
+          ipv6: false,
+          'enhanced-mode': 'fake-ip',
+          'fake-ip-range': '198.18.0.1/16',
+          'fake-ip-filter': ['*.lan', '*.local', '+.msftconnecttest.com', '+.msftncsi.com', 'localhost.ptlogin2.qq.com'],
+          'default-nameserver': ['223.5.5.5', '119.29.29.29'],
+          nameserver: ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'],
+        },
+      }, 0).join('\n'));
+    }
+
+    sections.push(
+      dumpObj({ 'proxy-providers': providers }, 0).join('\n'),
+      '# 固定出口：通过 dialer-proxy 经由「' + FRONT_GROUP + '」组连接\n' + dumpObj({ proxies: [exitProxy] }, 0).join('\n'),
+      dumpObj({ 'proxy-groups': groups }, 0).join('\n'),
+      dumpObj({ rules: buildRules(EXIT_GROUP, val('c-rules')) }, 0).join('\n'),
+    );
+
+    return sections.join('\n\n') + '\n';
+  }
+
+  function refreshChain() {
+    $('c-output').value = generateChain();
+    $('c-global-hint').hidden = val('c-mode') !== 'global';
+  }
+
+  $('c-add-sub').onclick = () => {
+    const taken = new Set(chain.subs.map((s) => s.name.trim()));
+    let n = chain.subs.length + 1;
+    while (taken.has(`订阅${n}`)) n++;
+    chain.subs.push({ name: `订阅${n}`, url: '' });
+    renderSubs();
+    refreshChain();
+  };
+
+  ['c-exit-link', 'c-exit-name', 'c-exit-insecure', 'c-filter', 'c-exclude', 'c-interval',
+    'c-mode', 'c-rules', 'c-dns', 'c-auto', 'c-direct'].forEach((id) => {
+    $(id).addEventListener('input', refreshChain);
+    $(id).addEventListener('change', refreshChain);
+  });
+
+  $('c-copy').onclick = () => copyOutput('c-output', 'c-out-msg');
+  $('c-download').onclick = () => downloadOutput('c-output', 'c-filename', 'chain.yaml');
+
+  updateVisibility();
+  refresh();
+  renderSubs();
+  refreshChain();
+  try {
+    if (localStorage.getItem('clash-gen-page') === 'chain') switchPage('chain');
+  } catch (e) { /* 存储不可用时停留在默认页 */ }
+})();
+</script>
+</body>
+</html>
